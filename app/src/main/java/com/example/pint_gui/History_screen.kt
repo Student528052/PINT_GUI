@@ -29,7 +29,6 @@ data class HistoryData(val time: String, val status: String)
 
 @Composable
 fun History_screen(navController: NavHostController) {
-//TODO: make functions to display from history file(txt or jason)
     val context = LocalContext.current
     val history = remember { mutableStateOf(listOf<HistoryData>()) }
 
@@ -56,6 +55,9 @@ fun History_screen(navController: NavHostController) {
 
 @Composable
  fun Display_History(entries: List<HistoryData>){
+     val colorGood = Color(android.graphics.Color.parseColor("#68ed6c"))
+     val colorBad = Color(android.graphics.Color.parseColor("#ed6a68"))
+
     LazyColumn(modifier = Modifier
         .fillMaxSize()
         .padding(16.dp)) {
@@ -64,10 +66,10 @@ fun History_screen(navController: NavHostController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 5.dp)
-                        .background(if (entry.status == "Good") Color.Green else Color.Red)
+                        .background(if (entry.status == "Good") colorGood else colorBad)
                 ) {
                     Text(
-                        text = entry.time.replace(":", " "),
+                        text = entry.time.replace(":", "-"),
                         modifier = Modifier
                             .padding(start = 16.dp),
                         color = Color.Black

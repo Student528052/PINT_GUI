@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -26,8 +27,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class ModelData(val name: String, val value: Int)
 private fun LoadSensorData(context: Context, filename : String): List<ModelData> {
@@ -38,10 +43,10 @@ private fun LoadSensorData(context: Context, filename : String): List<ModelData>
 
     lines.forEach { line ->
         val parts =
-            line.split("=").map { it.trim() }  // Split the line into parts and trim whitespace
+            line.split("=").map { it.trim() }
         if (parts.size == 2) {
             val name = parts[0]
-            val value = parts[1].toIntOrNull() ?: 0  // Safely convert to Int, default to 0 if null
+            val value = parts[1].toIntOrNull() ?: 0
             sensorDataList.add(ModelData(name, value))
         }
     }
@@ -76,6 +81,26 @@ fun BarChart(SensorData: List<ModelData>, modifier: Modifier = Modifier){
     }
 }
 
+fun Calibrate(){
+
+    try{
+        val url = URL(ESP32_IP)
+        val connect = url.openConnection() as HttpURLConnection
+        connect.requestMethod = "GET"
+        val calrequest = URL("$ESP32_IP?message=Cal")
+        val responseCode = connect.responseCode
+
+    connect.connect()
+    if(responseCode == HttpURLConnection.HTTP_OK)
+
+    else{}
+    connect.disconnect()
+}
+catch (e: Exception ){
+
+}
+
+}
 /*
 MAIN FUNCTION
  */
@@ -101,6 +126,7 @@ fun mainscreen(navController: NavHostController){
         Box(modifier = Modifier.padding(10.dp) ) {
             Text(text = "00:00:00", style = TextStyle(fontSize = 40.sp), fontWeight = FontWeight.Bold )
         }
+
         Button(onClick = { navController.navigate("history_screen")}, modifier = Modifier.padding(10.dp)) {
             Icon(
                 painter = painterResource(id = R.drawable.baseline_history_24),
@@ -109,7 +135,7 @@ fun mainscreen(navController: NavHostController){
             )
 
         }
-        Button(onClick = { /*TODO*/ }) {
+        Button(onClick = { Calibrate() }) {
             Icon(
                 painter = painterResource(id = R.drawable.baseline_build_24),
                 contentDescription = null,
@@ -120,10 +146,20 @@ fun mainscreen(navController: NavHostController){
 
 
         //assuming we get the data live(and not store it in a file), we can choose not to display anytning
-        if(connect_to_ESP32())
-        BarChart(SensorData = sensorData)
+        if(connect_to_ESP32()) {
+            BarChart(SensorData = sensorData)
+            Box(modifier = Modifier.padding(100.dp).background(color = Color(30,200,30))){
+                Text(text = "Status: Connected", modifier = Modifier.padding( ).background( color = Color(20,200,20)))
+            }
+
+        }
+
         else{
             Text(text="Sorry, nothing to show",modifier = Modifier.padding(150.dp))
-        };
-    }
+        }
+        Box( modifier = Modifier.padding(100.dp)){
+            Text(text = "STATUS: GOOD(TEST TEST TEST)", modifier = Modifier.padding( ))
+        }
+
+}
 }

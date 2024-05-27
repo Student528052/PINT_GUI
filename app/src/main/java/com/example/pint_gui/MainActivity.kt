@@ -22,9 +22,22 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.*
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStreamReader
+import java.net.ServerSocket
+import java.net.Socket
+import kotlin.system.measureTimeMillis
 
+
+var timeout_value = 15000;
+var ESP32_port = 80;
+var ESP32_IP = "192.168.1.1" //TODO: change this to the actual ip address.
+var floadValues : List<Float> = emptyList();
+var statusval : String = ""
 class MainActivity : ComponentActivity() {
     private var connectionJob: Job? = null;
+     val dataList = mutableListOf<Float>()
     @SuppressLint("CoroutineCreationDuringComposition")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,18 +50,19 @@ class MainActivity : ComponentActivity() {
                 while(isActive){
                     val ESP32_connection = connect_to_ESP32();
                     if(ESP32_connection)
+                        //TODO: add function that updates periodically
 
                 break;
 
                 }
-                delay(15000); //15 seconds
+                delay(timeMillis = measureTimeMillis { timeout_value }); //15 seconds
             }
 
             PINT_GUITheme {
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     NavHost(navController = navController, startDestination = "mainscreen") {
                         composable("mainscreen"){
@@ -65,10 +79,38 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/*connect_to_ESP32 Funcion
+* This funcion's purpose is to constantly check the availability of the ESP32. It SHOUD NOT send or recieve any data */
 
  fun connect_to_ESP32(): Boolean{
-    //TODO: figure out a way to connect to the ESP32, assuming were using a common hotspot
-    return true;
+        return try{
+            val socket = ServerSocket(ESP32_port);
+            val client: Socket = socket.accept();
+            val reader = BufferedReader(InputStreamReader(client.getInputStream()));// Blocking call, waits for ESP32 connection
+            val message = reader.readLine();
+            val values = message.split(',').map{it.toFloat()}
+            floadValues = values.take(6).map { it.toFloat() }
+            statusval = values[6].toString();
+            store_sen_data(floadValues, statusval);
+            return true;
+        }catch(e : Exception){
+            e.printStackTrace()
+            //TODO: replace this with false
+            return true;
+
+        }
+
+}
+fun store_sen_data(floatValue: List<Float>, stringValue: String){
+    var file = File("Sensor_data_temp.txt")
+try{
+
+    file.appendText("${floatValue.joinToString(",")}, $stringValue\n")
+}
+catch(e: Exception){
+    file.appendText("Failed to read data ");
+
+}
 }
 
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NOTE: CHANGE THE IP ADDRESS CUS IT CHANGES EVERY TIME. THIS
+WONT BE AN ISSUE IRL CUS IT WILL BE ON A LOCAL NETWORK BUT IT WILL BE ANNOYING TO
+DEMONSTRATE ON A HOTSPOT -->
+
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.147.145</domain>
+    </domain-config>
+</network-security-config>

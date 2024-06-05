@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -27,6 +29,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class ModelData(val name: String, val value: Int)
+
 private fun LoadSensorData(context: Context, filename : String): List<ModelData> {
     val sensorDataList = mutableListOf<ModelData>()
    try{
@@ -51,10 +54,14 @@ private fun LoadSensorData(context: Context, filename : String): List<ModelData>
 }
 
 @Composable
-fun BarChart(SensorData: List<ModelData>, modifier: Modifier = Modifier){
-
+fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
+    //Filtering out the data using REGEX
+    val regex = Regex("\\d+: (-?[\\d.]+)")
+    val values = regex.findAll(esp32result.value).mapNotNull { it.groupValues[1].toFloatOrNull() }.toList()
+    val status = esp32result.value.substringAfterLast(",").trim()
+/*
     Column (modifier = Modifier
-        .padding(60.dp)
+        .padding(20.dp)
         .fillMaxSize()){
         SensorData.forEach { data ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -71,6 +78,43 @@ fun BarChart(SensorData: List<ModelData>, modifier: Modifier = Modifier){
             }
         }
     }
+    */
+    Column(modifier = Modifier
+        .padding(20.dp)
+        ) {
+        values.forEachIndexed { index, value ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                Text(text = "Sen ${index + 1}", modifier = Modifier.width(80.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .height(45.dp)
+                            .width(value.dp * 3) // Scale factor to adjust bar width
+                            .background(Color.DarkGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+
+                        if (value.dp * 2 > 50.dp) { // Adjust threshold as needed
+                            Text(text = "$value", color = Color.White, style = TextStyle(fontSize = 25.sp), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center )
+                        }
+                    }
+                    if (value.dp * 2 <= 50.dp) { // Adjust threshold as needed
+                        Text(text = "$value", color = Color.White, style = TextStyle(fontSize = 25.sp), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center )
+
+                    }
+                }
+            }
+        }
+
+    }
+    Row(modifier = Modifier.background(if(status == "good" ) Color.Green else Color.Red).fillMaxWidth(), Arrangement.Center){
+        Box(modifier = Modifier, contentAlignment = Alignment.Center)
+        {
+            Text(text = "${status}", color = Color.Gray, modifier = Modifier, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, style = TextStyle(fontSize = 30.sp))
+        }
+    }
+
+
 }
 
 fun Calibrate(){
@@ -83,7 +127,7 @@ fun Calibrate(){
         val responseCode = connect.responseCode
 
     connect.connect()
-    if(responseCode == HttpURLConnection.HTTP_OK)
+    if(responseCode == HttpURLConnection.HTTP_OK)  esp32_status = "REFRESHING";
 
     else{}
     connect.disconnect()
@@ -97,17 +141,14 @@ catch (e: Exception ){
 MAIN FUNCTION
  */
 @Composable
-fun mainscreen(navController: NavHostController){
+fun mainscreen(navController: NavHostController, esp32values : MutableState<String>){
 
     val sensorData = remember { mutableStateListOf<ModelData>() }
     val context = LocalContext.current;
 
     // Load data asynchronously
     LaunchedEffect(Unit) {
-        /*TODO: THIS IS A TEMPORARY DEMONSTRATION OF HOW THE APPLICATION WILL GET THE DATA, CONSULT STILIYAN AND HUGO ABOUT THIS
 
-         */
-        sensorData.addAll(LoadSensorData( context,"Sensor_data_temp.txt"))
     }
     Column(modifier = Modifier
         .padding(10.dp)
@@ -138,8 +179,8 @@ fun mainscreen(navController: NavHostController){
 
 
         //assuming we get the data live(and not store it in a file), we can choose not to display anytning
-        if(connect_to_ESP32()) {
-            BarChart(SensorData = sensorData)
+        if(esp32_status != "") {
+            BarChart( esp32result = esp32values)
             Box(modifier = Modifier.padding(100.dp).background(color = Color(30,200,30))){
                 Text(text = "Status: Connected", modifier = Modifier.padding( ).background( color = Color(20,200,20)))
             }

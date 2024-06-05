@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.pint_gui.ui.theme.PINT_GUITheme
@@ -20,16 +24,24 @@ import kotlinx.coroutines.*
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URL
+import java.net.URLConnection
 import kotlin.system.measureTimeMillis
 
+//NOTE:
+/*When testing the http server, make sure to change the IP address on this file, as well as the
+network_security_config.xml file located in the /res/xml folder to prevent security issures
 
-var timeout_value = 15000
+ */
+var timeout_value = 5000
 var ESP32_port = 80
-var ESP32_IP = "192.168.32.41"
-var floadValues : List<Float> = emptyList()
-var statusval : String = ""
+var ESP32_IP = "192.168.147.145:${ESP32_port}"
+//Used to store the string
+var esp32_status : String = "No data";
+
 class MainActivity : ComponentActivity() {
     private var connectionJob: Job? = null
      val dataList = mutableListOf<Float>()
@@ -40,17 +52,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             //controlling between the main screen and the history screen
             val navController = rememberNavController()
-
+            val result  = remember { mutableStateOf("Gathering ") }
             var connectionJob = CoroutineScope(Dispatchers.Default).launch{
                 while(isActive){
-                    val ESP32_connection = connect_to_ESP32();
-                    if(ESP32_connection)
-                        //TODO: add function that updates periodically
-
-                break;
+                    delay(timeout_value.toLong()) //5 seconds
+                   result.value = fetchData();
+                    esp32_status = result.value;
 
                 }
-                delay(timeMillis = measureTimeMillis { timeout_value }) //15 seconds
             }
 
             PINT_GUITheme {
@@ -61,7 +70,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     NavHost(navController = navController, startDestination = "mainscreen") {
                         composable("mainscreen"){
-                            mainscreen(navController = navController)
+                            mainscreen(navController = navController, esp32values = result)
                         }
                         composable("history_screen"){
                             History_screen(navController = navController)
@@ -74,28 +83,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/*connect_to_ESP32 Funcion
-* This funcion's purpose is to constantly check the availability of the ESP32. It SHOUD NOT send or recieve any data */
 
- fun connect_to_ESP32(): Boolean{
-        return try{
-            //TODO: Make a sketch that should work on an arduino as well as an esp32 and test it using this application
-            val socket = ServerSocket(ESP32_port)
-            //val client: Socket = socket.accept()
-            //This line breaks shit, so beweare of it
-            //val reader = BufferedReader(InputStreamReader(client.getInputStream()))// Blocking call, waits for ESP32 connection
-            //val message = reader.readLine()
-            //val values = message.split(',').map{it.toFloat()}
-           // floadValues = values.take(6).map { it.toFloat() }
-            //statusval = values[6].toString()
-            //store_sen_data(floadValues, statusval)
-            return true
-        }catch(e : Exception){
+
+//The actual function used to recieve data. It
+private  suspend  fun fetchData() : String {
+    return withContext(Dispatchers.IO) {
+        try {
+            val url = URL("http://$ESP32_IP/")
+            val urlConnection = url.openConnection() as HttpURLConnection
+
+            val responseCode = urlConnection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val inputStream = urlConnection.inputStream
+                inputStream.bufferedReader().use {
+                    it.readText()
+                }
+            } else {
+                "Server returned non-OK status: $responseCode"
+            }
+        } catch (e: Exception) {
             e.printStackTrace()
-            return false
+            "Error : ${e.localizedMessage}"
         }
-
+    }
 }
+
+/*
 fun store_sen_data(floatValue: List<Float>, stringValue: String){
     var file = File("Sensor_data_temp.txt")
 try{
@@ -107,12 +120,16 @@ catch(e: Exception){
 
 }
 }
+*/
+
 
 
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
     PINT_GUITheme {
-
+        mainscreen(navController = rememberNavController(), esp32values =  remember {
+            mutableStateOf("Sample")
+        } )
     }
 }

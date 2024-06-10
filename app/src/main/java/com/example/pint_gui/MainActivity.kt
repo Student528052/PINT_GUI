@@ -36,7 +36,7 @@ import kotlin.system.measureTimeMillis
 network_security_config.xml file located in the /res/xml folder to prevent security issures
 
  */
-var timeout_value = 5000
+var timeout_value = 1000
 var ESP32_port = 80
 var ESP32_IP = "192.168.147.145:${ESP32_port}"
 //Used to store the string
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
                 while(isActive){
                     delay(timeout_value.toLong()) //5 seconds
                    result.value = fetchData();
-                    esp32_status = result.value;
+                   esp32_status = result.value;
 
                 }
             }
@@ -86,10 +86,10 @@ class MainActivity : ComponentActivity() {
 
 
 //The actual function used to recieve data. It
-private  suspend  fun fetchData() : String {
+  suspend  fun fetchData() : String {
     return withContext(Dispatchers.IO) {
         try {
-            val url = URL("http://$ESP32_IP/")
+            val url = URL("http://$ESP32_IP")
             val urlConnection = url.openConnection() as HttpURLConnection
 
             val responseCode = urlConnection.responseCode

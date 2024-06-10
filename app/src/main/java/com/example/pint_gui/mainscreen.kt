@@ -11,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,35 +25,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-
+import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.*
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 data class ModelData(val name: String, val value: Int)
 
-private fun LoadSensorData(context: Context, filename : String): List<ModelData> {
-    val sensorDataList = mutableListOf<ModelData>()
-   try{
-       val inputStream: InputStream = context.assets.open(filename)
-       val lines = inputStream.bufferedReader().useLines { lines -> lines.toList() }
 
-    lines.forEach { line ->
-        val parts =
-            line.split("=").map { it.trim() }
-        if (parts.size == 2) {
-            val name = parts[0]
-            val value = parts[1].toIntOrNull() ?: 0
-            sensorDataList.add(ModelData(name, value))
-        }
-    }
-    } catch (e: Exception) {
-        // Handle exceptions, perhaps log them or handle differently depending on your app's needs
-        e.printStackTrace()
-    }
-
-    return sensorDataList
-}
 
 @Composable
 fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
@@ -107,7 +89,12 @@ fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
         }
 
     }
-    Row(modifier = Modifier.background(if(status == "good" ) Color.Green else Color.Red).fillMaxWidth(), Arrangement.Center){
+    Row(modifier = Modifier
+        .background(if (status == "good") Color.Green
+        else if (status == "Bad") Color.Red
+            else if(status == "Very Bad")Color.Black
+                else Color.LightGray)
+        .fillMaxWidth(), Arrangement.Center){
         Box(modifier = Modifier, contentAlignment = Alignment.Center)
         {
             Text(text = "${status}", color = Color.Gray, modifier = Modifier, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, style = TextStyle(fontSize = 30.sp))
@@ -117,24 +104,27 @@ fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
 
 }
 
-fun Calibrate(){
+  fun Calibrate() : String{
 
+//TODO; make  this work along side the fetchData Coroutine
     try{
-        val url = URL(ESP32_IP)
-        val connect = url.openConnection() as HttpURLConnection
-        connect.requestMethod = "GET"
-        val calrequest = URL("$ESP32_IP?message=Cal")
-        val responseCode = connect.responseCode
+        val url = URL("http://${ESP32_IP}${ESP32_port}/Startcal")
+        val urlConnection = url.openConnection() as HttpURLConnection
+        val responseCode = urlConnection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val inputStream = urlConnection.inputStream
+            inputStream.bufferedReader().use {
+                it.readText()
+            }
+            return inputStream.toString();
+        } else {
+            "Server returned non-OK status: $responseCode"
+        }
+    }catch (e : Exception){
+        e.printStackTrace()
 
-    connect.connect()
-    if(responseCode == HttpURLConnection.HTTP_OK)  esp32_status = "REFRESHING";
-
-    else{}
-    connect.disconnect()
-}
-catch (e: Exception ){
-
-}
+    }
+return "CALIBRATION COMPLETE";
 
 }
 /*
@@ -142,10 +132,13 @@ MAIN FUNCTION
  */
 @Composable
 fun mainscreen(navController: NavHostController, esp32values : MutableState<String>){
+    val scope = rememberCoroutineScope();
+    val CalButton : () ->Unit = {
+        scope.launch{
+            esp32_status = Calibrate();
+        }
 
-    val sensorData = remember { mutableStateListOf<ModelData>() }
-    val context = LocalContext.current;
-
+    }
     // Load data asynchronously
     LaunchedEffect(Unit) {
 
@@ -168,7 +161,8 @@ fun mainscreen(navController: NavHostController, esp32values : MutableState<Stri
             )
 
         }
-        Button(onClick = { Calibrate() }) {
+        Button(onClick = { CalButton }) {
+
             Icon(
                 painter = painterResource(id = R.drawable.baseline_build_24),
                 contentDescription = null,
@@ -181,8 +175,12 @@ fun mainscreen(navController: NavHostController, esp32values : MutableState<Stri
         //assuming we get the data live(and not store it in a file), we can choose not to display anytning
         if(esp32_status != "") {
             BarChart( esp32result = esp32values)
-            Box(modifier = Modifier.padding(100.dp).background(color = Color(30,200,30))){
-                Text(text = "Status: Connected", modifier = Modifier.padding( ).background( color = Color(20,200,20)))
+            Box(modifier = Modifier
+                .padding(100.dp)
+                .background(color = Color(30, 200, 30))){
+                Text(text = "Status: Connected", modifier = Modifier
+                    .padding()
+                    .background(color = Color(20, 200, 20)))
             }
 
         }

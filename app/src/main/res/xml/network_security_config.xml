@@ -5,6 +5,6 @@ DEMONSTRATE ON A HOTSPOT -->
 
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.147.145</domain>
+        <domain includeSubdomains="true">192.168.147.26</domain>
     </domain-config>
 </network-security-config>

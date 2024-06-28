@@ -10,27 +10,33 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
-
+import androidx.lifecycle.viewmodel.compose.viewModel
 data class ModelData(val name: String, val value: Int)
 
 
@@ -41,26 +47,7 @@ fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
     val regex = Regex("\\d+: (-?[\\d.]+)")
     val values = regex.findAll(esp32result.value).mapNotNull { it.groupValues[1].toFloatOrNull() }.toList()
     val status = esp32result.value.substringAfterLast(",").trim()
-/*
-    Column (modifier = Modifier
-        .padding(20.dp)
-        .fillMaxSize()){
-        SensorData.forEach { data ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "${data.name}", modifier = Modifier.width(70.dp))
-                Box(
-                    modifier = Modifier
-                        .height(45.dp)
-                        .width(data.value.dp * 3) // Scale factor to adjust bar width
-                        .background(Color.DarkGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "${data.value}", color = Color.White, style = TextStyle(fontSize = 25.sp), fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-    */
+
     Column(modifier = Modifier
         .padding(20.dp)
         ) {
@@ -90,10 +77,12 @@ fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
 
     }
     Row(modifier = Modifier
-        .background(if (status == "good") Color.Green
-        else if (status == "Bad") Color.Red
-            else if(status == "Very Bad")Color.Black
-                else Color.LightGray)
+        .background(
+            if (status == "Good") Color.Green
+            else if (status == "Bad") Color.Red
+            else if (status == "Very Bad") Color.Black
+            else Color.LightGray
+        )
         .fillMaxWidth(), Arrangement.Center){
         Box(modifier = Modifier, contentAlignment = Alignment.Center)
         {
@@ -104,45 +93,31 @@ fun BarChart( modifier: Modifier = Modifier, esp32result: MutableState<String>){
 
 }
 
-  fun Calibrate() : String{
 
-//TODO; make  this work along side the fetchData Coroutine
-    try{
-        val url = URL("http://${ESP32_IP}${ESP32_port}/Startcal")
-        val urlConnection = url.openConnection() as HttpURLConnection
-        val responseCode = urlConnection.responseCode
-        if (responseCode == HttpURLConnection.HTTP_OK) {
-            val inputStream = urlConnection.inputStream
-            inputStream.bufferedReader().use {
-                it.readText()
-            }
-            return inputStream.toString();
-        } else {
-            "Server returned non-OK status: $responseCode"
-        }
-    }catch (e : Exception){
-        e.printStackTrace()
 
-    }
-return "CALIBRATION COMPLETE";
 
-}
 /*
 MAIN FUNCTION
  */
 @Composable
-fun mainscreen(navController: NavHostController, esp32values : MutableState<String>){
+fun mainscreen(navController: NavHostController, esp32values : MutableState<String>, viewModel: MainViewModel = viewModel()) {
     val scope = rememberCoroutineScope();
-    val CalButton : () ->Unit = {
-        scope.launch{
-            esp32_status = Calibrate();
+    val timer by viewModel.timer;
+    val time = remember { mutableStateOf(0L) }
+    val CalButton: () -> Unit = {
+        scope.launch {
+            fetchData("http://${ESP32_IP}/Startcal");
+
+        }
+        viewModel.startOrResetTimer()
         }
 
-    }
-    // Load data asynchronously
-    LaunchedEffect(Unit) {
 
-    }
+
+
+
+
+    // Load data asynchronously
     Column(modifier = Modifier
         .padding(10.dp)
         .fillMaxSize(),
@@ -150,7 +125,7 @@ fun mainscreen(navController: NavHostController, esp32values : MutableState<Stri
         //timer
         //TODO: change this to start a function and start the timer
         Box(modifier = Modifier.padding(10.dp) ) {
-            Text(text = "00:00:00", style = TextStyle(fontSize = 40.sp), fontWeight = FontWeight.Bold )
+            Text(text = formatTime(timer), style = TextStyle(fontSize = 40.sp), fontWeight = FontWeight.Bold )
         }
 
         Button(onClick = { navController.navigate("history_screen")}, modifier = Modifier.padding(10.dp)) {
@@ -161,7 +136,7 @@ fun mainscreen(navController: NavHostController, esp32values : MutableState<Stri
             )
 
         }
-        Button(onClick = { CalButton }) {
+        Button(onClick = CalButton ) {
 
             Icon(
                 painter = painterResource(id = R.drawable.baseline_build_24),
@@ -193,4 +168,37 @@ fun mainscreen(navController: NavHostController, esp32values : MutableState<Stri
         }
 
 }
+}
+private fun formatTime(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return String.format("%02d:%02d:%02d", hours, minutes, secs)
+}
+
+
+class MainViewModel : ViewModel() {
+    private var timerJob: Job? = null
+    private val _timer = mutableStateOf(0L)
+    val timer: State<Long> get() = _timer
+    private var isTimerRunning = false
+
+    fun startOrResetTimer() {
+        if (!isTimerRunning) {
+            isTimerRunning = true
+            timerJob = viewModelScope.launch {
+                while (isTimerRunning) {
+                    _timer.value++
+                    delay(1000L)
+                }
+            }
+        } else {
+            _timer.value = 0L // Reset the timer
+        }
+    }
+
+    fun stopTimer() {
+        isTimerRunning = false
+        timerJob?.cancel()
+    }
 }

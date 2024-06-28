@@ -1,6 +1,0 @@
-Sensor 1 = 10
-Sensor 2 = 43
-Sensor 3 = 40
-Sensor 4 = 20
-Sensor 5 = 15
-Sensor 6 = 5
